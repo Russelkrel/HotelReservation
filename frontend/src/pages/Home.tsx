@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { hotelAPI } from '../api'
+import { hotelAPI, roomAPI } from '../api'
 
 interface Hotel {
   id: number
@@ -11,27 +11,67 @@ interface Hotel {
   imageUrl: string | null
 }
 
+interface Room {
+  id: number
+  price: number
+  hotelId: number
+}
+
 export default function Home() {
   const [hotels, setHotels] = useState<Hotel[]>([])
-  const [filteredHotels, setFilteredHotels] = useState<Hotel[]>([])
+  const [roomsByHotel, setRoomsByHotel] = useState<{ [key: number]: Room[] }>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
-  // Filter states
-  const [searchTerm, setSearchTerm] = useState('')
-  const [locationFilter, setLocationFilter] = useState('')
-  const [ratingFilter, setRatingFilter] = useState('0')
+  const [sortBy, setSortBy] = useState('name')
+  const [minPrice, setMinPrice] = useState(0)
+  const [maxPrice, setMaxPrice] = useState(1000)
+  const [maxAvailablePrice, setMaxAvailablePrice] = useState(1000)
+  const [searchLocation, setSearchLocation] = useState('')
 
   useEffect(() => {
     const fetchHotels = async () => {
       try {
         setLoading(true)
+        // Add timeout - if request takes more than 5 seconds, fail
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5000)
+        
+        console.log('Fetching from:', 'http://localhost:3000/hotels')
         const response = await hotelAPI.getAllHotels()
+        clearTimeout(timeoutId)
+        
+        console.log('Got response:', response.data)
         setHotels(response.data)
-        setFilteredHotels(response.data)
+
+        // Fetch rooms for each hotel to get pricing info
+        const roomsMap: { [key: number]: Room[] } = {}
+        let maxPrice = 0
+        
+        for (const hotel of response.data) {
+          try {
+            const roomsRes = await roomAPI.getRoomsByHotel(hotel.id)
+            roomsMap[hotel.id] = roomsRes.data
+            // Update max price
+            roomsRes.data.forEach((room: Room) => {
+              if (room.price > maxPrice) {
+                maxPrice = room.price
+              }
+            })
+          } catch (err) {
+            console.error(`Failed to fetch rooms for hotel ${hotel.id}`, err)
+            roomsMap[hotel.id] = []
+          }
+        }
+        
+        setRoomsByHotel(roomsMap)
+        setMaxAvailablePrice(maxPrice || 1000)
+        setMaxPrice(maxPrice || 1000)
       } catch (err: any) {
-        setError('Failed to fetch hotels')
-        console.error(err)
+        const errorMsg = err.code === 'ECONNABORTED' 
+          ? 'Request timeout - backend not responding'
+          : err.response?.data?.message || err.message || 'Unknown error'
+        console.error('API Error:', errorMsg, err)
+        setError(`Failed to fetch hotels: ${errorMsg}`)
       } finally {
         setLoading(false)
       }
@@ -39,34 +79,6 @@ export default function Home() {
 
     fetchHotels()
   }, [])
-
-  // Filter hotels based on search criteria
-  useEffect(() => {
-    let filtered = hotels
-
-    // Filter by search term (name or location)
-    if (searchTerm) {
-      filtered = filtered.filter(hotel =>
-        hotel.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        hotel.location.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
-
-    // Filter by location
-    if (locationFilter) {
-      filtered = filtered.filter(hotel =>
-        hotel.location.toLowerCase().includes(locationFilter.toLowerCase())
-      )
-    }
-
-    // Filter by rating
-    if (ratingFilter && ratingFilter !== '0') {
-      filtered = filtered.filter(hotel => hotel.rating >= parseFloat(ratingFilter))
-    }
-
-    setFilteredHotels(filtered)
-  }, [searchTerm, locationFilter, ratingFilter, hotels])
-
 
   if (loading) {
     return (
@@ -83,96 +95,142 @@ export default function Home() {
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-blue-700 to-purple-700 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold mb-4">Find Your Perfect Hotel</h1>
+          <h1 className="text-5xl font-bold mb-2">🚀 JOSHTEL</h1>
+          <p className="text-2xl font-bold mb-4">Find Your Perfect Hotel</p>
           <p className="text-xl opacity-90">Discover amazing hotels and book your stay today</p>
         </div>
       </div>
 
       {/* Hotels Grid */}
       <div className="max-w-6xl mx-auto px-4 py-12">
-        <h2 className="text-3xl font-bold mb-8 text-gray-100">Featured Hotels</h2>
+        <h2 className="text-3xl font-bold text-gray-100 mb-8">Featured Hotels</h2>
         
-        {/* Search and Filter Section */}
-        <div className="bg-gray-800 p-4 rounded-lg mb-8 border border-gray-700 mx-auto max-w-4xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Search by name */}
+        {/* Filters and Sorting */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-8 border border-gray-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Search Location */}
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">Search Hotel Name</label>
-              <input
+              <label className="block text-gray-300 font-medium mb-2">Search Location</label>
+              <input 
                 type="text"
-                placeholder="e.g., Luxury Plaza"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full h-10 px-4 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:outline-none focus:border-blue-500 transition"
+                placeholder="e.g., New York, Paris..."
+                value={searchLocation}
+                onChange={(e) => setSearchLocation(e.target.value)}
+                className="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-blue-500 placeholder-gray-500"
               />
             </div>
 
-            {/* Filter by location */}
+            {/* Sort By */}
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">Location</label>
-              <select
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 focus:outline-none focus:border-blue-500 transition"
+              <label className="block text-gray-300 font-medium mb-2">Sort By</label>
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-blue-500"
               >
-                <option value="">All Locations</option>
-                <option value="New York">New York</option>
-                <option value="Miami">Miami</option>
-                <option value="Denver">Denver</option>
+                <option value="name">Name (A-Z)</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
+                <option value="rating">Rating: High to Low</option>
               </select>
             </div>
 
-            {/* Filter by rating */}
+            {/* Min Price */}
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">Minimum Rating</label>
-              <select
-                value={ratingFilter}
-                onChange={(e) => setRatingFilter(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 focus:outline-none focus:border-blue-500 transition"
-              >
-                <option value="0">All Ratings</option>
-                <option value="4.5">4.5+ Stars</option>
-                <option value="4">4+ Stars</option>
-                <option value="3">3+ Stars</option>
-              </select>
+              <label className="block text-gray-300 font-medium mb-2">Min Price: ${minPrice}</label>
+              <input 
+                type="range"
+                min="0"
+                max={maxAvailablePrice}
+                value={minPrice}
+                onChange={(e) => setMinPrice(Number(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="text-xs text-gray-400 mt-1">$0 - ${maxAvailablePrice}</div>
+            </div>
+
+            {/* Max Price */}
+            <div>
+              <label className="block text-gray-300 font-medium mb-2">Max Price: ${maxPrice}</label>
+              <input 
+                type="range"
+                min="0"
+                max={maxAvailablePrice}
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(Number(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="text-xs text-gray-400 mt-1">$0 - ${maxAvailablePrice}</div>
             </div>
           </div>
         </div>
 
-        {/* Results count */}
-        <div className="mb-4 text-gray-400">
-          Showing {filteredHotels.length} of {hotels.length} hotels
-        </div>
         {error && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded mb-4">{error}</div>}
         
-        {filteredHotels.length === 0 ? (
-          <div className="text-center text-gray-400 py-8">
-            {hotels.length === 0 ? 'No hotels available' : 'No hotels match your search criteria'}
-          </div>
+        {hotels.length === 0 ? (
+          <div className="text-center text-gray-400 py-8">No hotels available</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredHotels.map(hotel => (
-              <Link key={hotel.id} to={`/hotel/${hotel.id}`}>
-                <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer h-full border border-gray-700 hover:border-blue-500">
-                  <img 
-                    src={hotel.imageUrl || 'https://via.placeholder.com/400x200?text=' + encodeURIComponent(hotel.name)} 
-                    alt={hotel.name} 
-                    className="w-full h-48 object-cover hover:scale-110 transition-transform duration-300" 
-                  />
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold text-gray-100 mb-2 hover:text-blue-400 transition-colors duration-200">{hotel.name}</h3>
-                    <p className="text-gray-400 mb-2">{hotel.location}</p>
-                    <p className="text-gray-300 text-sm mb-4">{hotel.description || 'A wonderful place to stay'}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-yellow-500 font-bold">⭐ {hotel.rating.toFixed(1)}</span>
-                      <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 hover:scale-110 transition-all duration-200">
-                        View Details
-                      </button>
+            {hotels
+              .filter(hotel => {
+                // Check if hotel has rooms within price range
+                const hotelRooms = roomsByHotel[hotel.id] || []
+                if (hotelRooms.length === 0) return false
+                const hasRoomInRange = hotelRooms.some(room => room.price >= minPrice && room.price <= maxPrice)
+                
+                // Check if hotel location matches search (case-insensitive, partial match)
+                const locationMatch = hotel.location.toLowerCase().includes(searchLocation.toLowerCase())
+                
+                return hasRoomInRange && locationMatch
+              })
+              .sort((a, b) => {
+                // Get min price for each hotel
+                const aRooms = roomsByHotel[a.id] || []
+                const bRooms = roomsByHotel[b.id] || []
+                const aMinPrice = aRooms.length > 0 ? Math.min(...aRooms.map(r => r.price)) : Infinity
+                const bMinPrice = bRooms.length > 0 ? Math.min(...bRooms.map(r => r.price)) : Infinity
+
+                if (sortBy === 'name') {
+                  return a.name.localeCompare(b.name)
+                } else if (sortBy === 'price-low') {
+                  return aMinPrice - bMinPrice
+                } else if (sortBy === 'price-high') {
+                  return bMinPrice - aMinPrice
+                } else if (sortBy === 'rating') {
+                  return (b.rating || 0) - (a.rating || 0)
+                }
+                return 0
+              })
+              .map(hotel => {
+                const hotelRooms = roomsByHotel[hotel.id] || []
+                const minRoomPrice = hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.price)) : 'N/A'
+                
+                return (
+                  <Link key={hotel.id} to={`/hotel/${hotel.id}`}>
+                    <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer h-full border border-gray-700 hover:border-blue-500">
+                      <img 
+                        src={hotel.imageUrl || 'https://via.placeholder.com/400x200?text=' + encodeURIComponent(hotel.name)} 
+                        alt={hotel.name} 
+                        className="w-full h-48 object-cover" 
+                      />
+                      <div className="p-6">
+                        <h3 className="text-xl font-bold text-gray-100 mb-2">{hotel.name}</h3>
+                        <p className="text-gray-300 mb-2">{hotel.location}</p>
+                        <p className="text-gray-400 text-sm mb-4">{hotel.description || 'A wonderful place to stay'}</p>
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-yellow-500 font-bold">⭐ {hotel.rating.toFixed(1)}</span>
+                          {minRoomPrice !== 'N/A' && (
+                            <span className="text-blue-400 font-bold">from ${minRoomPrice}/night</span>
+                          )}
+                        </div>
+                        <button className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                          View Details
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                  </Link>
+                )
+              })}
           </div>
         )}
       </div>

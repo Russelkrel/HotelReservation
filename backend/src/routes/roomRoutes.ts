@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { createRoom, getRoomsByHotel, updateRoom, deleteRoom } from '../controllers/roomController.js';
-import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
-import upload from '../middleware/upload.js';
+import { createRoom, getRoomsByHotel, updateRoom, deleteRoom } from '../controllers/roomController';
+import { authMiddleware, adminMiddleware } from '../middleware/auth';
+import upload from '../middleware/upload';
 
 const router = Router();
 

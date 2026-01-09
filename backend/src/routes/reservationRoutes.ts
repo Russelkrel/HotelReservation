@@ -5,9 +5,10 @@ import {
   getReservationById,
   updateReservationStatus,
   cancelReservation,
-  getAllReservations
-} from '../controllers/reservationController.js';
-import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
+  getAllReservations,
+  getCancellationInfo
+} from '../controllers/reservationController';
+import { authMiddleware, adminMiddleware } from '../middleware/auth';
 
 const router = Router();
 
@@ -15,6 +16,7 @@ const router = Router();
 router.post('/', authMiddleware, createReservation);
 router.get('/my-reservations', authMiddleware, getUserReservations);
 router.get('/:id', authMiddleware, getReservationById);
+router.get('/:id/cancellation-info', authMiddleware, getCancellationInfo);
 router.delete('/:id', authMiddleware, cancelReservation);
 
 // Admin routes

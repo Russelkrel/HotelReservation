@@ -13,7 +13,7 @@ export default function Navigation() {
   return (
     <nav className="bg-gray-800 shadow-lg border-b border-gray-700">
       <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-        <Link to="/" className="text-2xl font-bold text-blue-400">🏨 HotelReservation</Link>
+        <Link to="/" className="text-2xl font-bold text-blue-400">🚀 JOSHTEL</Link>
         
         <div className="space-x-4 flex items-center">
           {isAuthenticated ? (

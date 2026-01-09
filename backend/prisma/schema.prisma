@@ -49,6 +49,7 @@ model Room {
   capacity  Int
   imageUrl  String?   // Cloudinary URL
   description String?
+  amenities String[]  // JSON array of amenities: ["WiFi", "AC", "TV", etc.]
   isAvailable Boolean @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -66,7 +67,9 @@ model Reservation {
   checkInDate DateTime
   checkOutDate DateTime
   totalPrice Float
+  refundAmount Float?   // Amount to be refunded if cancelled
   status    String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  cancellationDate DateTime? // When the reservation was cancelled
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

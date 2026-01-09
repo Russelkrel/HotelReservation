@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { createReservationSchema, updateReservationStatusSchema } from '../schemas/reservationSchema.js';
+import { createReservationSchema, updateReservationStatusSchema } from '../schemas/reservationSchema';
+import { calculateCancellation } from '../utils/cancellationPolicy';
+import { sendBookingConfirmation, sendCancellationConfirmation } from '../utils/emailService';
 
 const prisma = new PrismaClient();
 
@@ -75,6 +77,36 @@ export const createReservation = async (req: any, res: Response) => {
         user: { select: { id: true, email: true, name: true } }
       }
     });
+
+    // Send booking confirmation email
+    try {
+      const checkInFormatted = checkIn.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      const checkOutFormatted = checkOut.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      await sendBookingConfirmation({
+        userEmail: reservation.user.email,
+        userName: reservation.user.name,
+        hotelName: reservation.room.hotel.name,
+        roomType: reservation.room.type,
+        checkInDate: checkInFormatted,
+        checkOutDate: checkOutFormatted,
+        totalPrice: reservation.totalPrice,
+        reservationId: reservation.id.toString()
+      });
+    } catch (emailError) {
+      console.error('Failed to send booking confirmation email:', emailError);
+      // Don't fail the booking if email fails
+    }
 
     res.status(201).json({
       message: 'Reservation created successfully',
@@ -175,6 +207,46 @@ export const updateReservationStatus = async (req: any, res: Response) => {
   }
 };
 
+// Get cancellation info for a reservation
+export const getCancellationInfo = async (req: any, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!reservation) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+
+    // Check authorization
+    if (reservation.userId !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    if (reservation.status === 'CANCELLED') {
+      return res.status(400).json({ error: 'Reservation is already cancelled' });
+    }
+
+    // Calculate cancellation info
+    const cancellationInfo = calculateCancellation(
+      reservation.checkInDate,
+      reservation.totalPrice
+    );
+
+    res.json({
+      ...cancellationInfo,
+      checkInDate: reservation.checkInDate,
+      totalPrice: reservation.totalPrice
+    });
+  } catch (error: any) {
+    console.error('Get cancellation info error:', error);
+    res.status(500).json({ error: 'Failed to fetch cancellation info' });
+  }
+};
+
 // Cancel reservation (user can cancel their own, admin can cancel any)
 export const cancelReservation = async (req: any, res: Response) => {
   try {
@@ -198,18 +270,46 @@ export const cancelReservation = async (req: any, res: Response) => {
       return res.status(400).json({ error: 'Reservation is already cancelled' });
     }
 
+    // Calculate refund based on cancellation policy
+    const cancellationInfo = calculateCancellation(
+      reservation.checkInDate,
+      reservation.totalPrice
+    );
+
     const cancelled = await prisma.reservation.update({
       where: { id: parseInt(id) },
-      data: { status: 'CANCELLED' },
+      data: { 
+        status: 'CANCELLED',
+        refundAmount: cancellationInfo.refundAmount,
+        cancellationDate: new Date()
+      },
       include: {
         room: { include: { hotel: true } },
         user: { select: { id: true, email: true, name: true } }
       }
     });
 
+    // Send cancellation confirmation email
+    try {
+      await sendCancellationConfirmation(
+        cancelled.user.email,
+        cancelled.user.name,
+        cancelled.id.toString(),
+        cancellationInfo.refundAmount
+      );
+    } catch (emailError) {
+      console.error('Failed to send cancellation email:', emailError);
+      // Don't fail the cancellation if email fails
+    }
+
     res.json({
       message: 'Reservation cancelled successfully',
-      reservation: cancelled
+      reservation: cancelled,
+      refundInfo: {
+        policy: cancellationInfo.policy,
+        refundPercentage: cancellationInfo.refundPercentage,
+        refundAmount: cancellationInfo.refundAmount
+      }
     });
   } catch (error: any) {
     console.error('Cancel reservation error:', error);

@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authRoutes from './routes/authRoutes.js';
-import hotelRoutes from './routes/hotelRoutes.js';
-import roomRoutes from './routes/roomRoutes.js';
-import reservationRoutes from './routes/reservationRoutes.js';
+import authRoutes from './routes/authRoutes';
+import hotelRoutes from './routes/hotelRoutes';
+import roomRoutes from './routes/roomRoutes';
+import reservationRoutes from './routes/reservationRoutes';
 
 dotenv.config();
 

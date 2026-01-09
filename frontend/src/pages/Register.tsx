@@ -31,7 +31,7 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md border border-gray-700">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-100">Create Account</h1>
+        <h1 className="text-3xl font-bold text-center mb-8 text-gray-100">🚀 JOSHTEL - Create Account</h1>
         
         {error && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded mb-4">{error}</div>}
         

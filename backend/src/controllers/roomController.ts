@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { createRoomSchema, updateRoomSchema } from '../schemas/hotelSchema.js';
-import { uploadToCloudinary, deleteFromCloudinary } from '../utils/uploadToCloudinary.js';
+import { createRoomSchema, updateRoomSchema } from '../schemas/hotelSchema';
+import { uploadToCloudinary, deleteFromCloudinary } from '../utils/uploadToCloudinary';
 
 const prisma = new PrismaClient();
 
