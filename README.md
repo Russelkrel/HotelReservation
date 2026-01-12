@@ -123,6 +123,8 @@ Test Credentials
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
+run pisma studio
+- `npx run studio` - run prisma studio
 
 ## Database Schema
 

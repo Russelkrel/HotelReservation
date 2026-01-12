@@ -20,6 +20,9 @@ export default function Navigation() {
             <>
               <span className="text-gray-300">Welcome, {user?.name}!</span>
               <Link to="/dashboard" className="text-gray-300 hover:text-blue-400">Dashboard</Link>
+              {user?.role === 'ADMIN' && (
+                <Link to="/admin" className="text-gray-300 hover:text-yellow-400 font-bold">🔐 Admin</Link>
+              )}
               <button
                 onClick={handleLogout}
                 className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
