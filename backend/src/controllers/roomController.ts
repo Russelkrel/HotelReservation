@@ -7,12 +7,12 @@ const prisma = new PrismaClient();
 
 export const createRoom = async (req: Request, res: Response) => {
   try {
-    const { hotelId } = req.params;
+    let hotelId = parseInt(req.params.hotelId || req.body.hotelId);
     const body = req.body;
 
     const result = createRoomSchema.safeParse({
       ...body,
-      hotelId: parseInt(hotelId),
+      hotelId,
     });
 
     if (!result.success) {
@@ -34,7 +34,7 @@ export const createRoom = async (req: Request, res: Response) => {
     if (req.file) {
       try {
         const uploadResult = await uploadToCloudinary(req.file, {
-          folder: `hotels/${hotelId}/rooms`,
+          folder: `hotels/${result.data.hotelId}/rooms`,
         });
         imageUrl = uploadResult.url;
       } catch (error) {
@@ -60,6 +60,21 @@ export const createRoom = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Create room error:', error);
     res.status(500).json({ error: 'Failed to create room' });
+  }
+};
+
+export const getAllRooms = async (req: Request, res: Response) => {
+  try {
+    const rooms = await prisma.room.findMany({
+      include: {
+        hotel: true,
+      },
+    });
+
+    res.status(200).json(rooms);
+  } catch (error) {
+    console.error('Get all rooms error:', error);
+    res.status(500).json({ error: 'Failed to fetch rooms' });
   }
 };
 

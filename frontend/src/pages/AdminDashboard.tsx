@@ -21,6 +21,33 @@ interface Hotel {
   updatedAt: string;
 }
 
+interface Room {
+  id: number;
+  roomNumber: string;
+  hotelId: number;
+  type: string;
+  price: number;
+  capacity: number;
+  imageUrl?: string;
+  amenities: string[];
+  hotel?: Hotel;
+}
+
+interface Reservation {
+  id: number;
+  userId: number;
+  roomId: number;
+  checkInDate: string;
+  checkOutDate: string;
+  totalPrice: number;
+  status: string;
+  room?: Room;
+  user?: {
+    name: string;
+    email: string;
+  };
+}
+
 interface AdminMenuTab {
   id: string;
   label: string;
@@ -39,14 +66,26 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [selectedHotelForRoom, setSelectedHotelForRoom] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     location: '',
     description: '',
     rating: 0,
+  });
+  const [roomFormData, setRoomFormData] = useState({
+    roomNumber: '',
+    type: 'Single',
+    price: 0,
+    capacity: 1,
+    amenities: [] as string[],
   });
 
   // Check if user is admin
@@ -61,27 +100,31 @@ export default function AdminDashboard() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        // Get all hotels and reservations
-        const [hotelsRes, reservationsRes] = await Promise.all([
+        // Get all hotels, rooms, and reservations
+        const [hotelsRes, roomsRes, reservationsRes] = await Promise.all([
           api.get('/hotels'),
+          api.get('/rooms'),
           api.get('/reservations'),
         ]);
 
         const hotels = hotelsRes.data;
+        const rooms = roomsRes.data;
         const reservations = reservationsRes.data;
 
-        // Calculate total revenue from completed/confirmed reservations
+        // Calculate total revenue from confirmed reservations
         const totalRevenue = reservations.reduce((sum: number, res: any) => {
           return res.status === 'CONFIRMED' || res.status === 'COMPLETED' ? sum + res.totalPrice : sum;
         }, 0);
 
         setStats({
           totalHotels: hotels.length,
-          totalRooms: reservations.length, // Placeholder
+          totalRooms: rooms.length,
           totalReservations: reservations.length,
           totalRevenue,
         });
         setHotels(hotels);
+        setRooms(rooms);
+        setReservations(reservations);
       } catch (error) {
         console.error('Failed to fetch stats:', error);
       } finally {
@@ -126,6 +169,53 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Failed to delete hotel:', error);
       alert('Failed to delete hotel');
+    }
+  };
+
+  // Save Room
+  const handleSaveRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const hotelId = editingRoom?.hotelId || selectedHotelForRoom;
+      if (!hotelId) {
+        alert('Please select a hotel');
+        return;
+      }
+
+      const payload = {
+        ...roomFormData,
+        hotelId,
+      };
+
+      if (editingRoom) {
+        const response = await api.put(`/rooms/${editingRoom.id}`, payload);
+        setRooms(rooms.map(r => r.id === editingRoom.id ? response.data.room : r));
+        alert('Room updated successfully!');
+      } else {
+        const response = await api.post('/rooms', payload);
+        setRooms([...rooms, response.data.room]);
+        alert('Room created successfully!');
+      }
+      setShowRoomModal(false);
+      setEditingRoom(null);
+      setSelectedHotelForRoom(null);
+      setRoomFormData({ roomNumber: '', type: 'Single', price: 0, capacity: 1, amenities: [] });
+    } catch (error) {
+      console.error('Failed to save room:', error);
+      alert('Failed to save room');
+    }
+  };
+
+  // Delete Room
+  const handleDeleteRoom = async (roomId: number) => {
+    try {
+      await api.delete(`/rooms/${roomId}`);
+      setRooms(rooms.filter(r => r.id !== roomId));
+      setShowDeleteConfirm(null);
+      alert('Room deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete room:', error);
+      alert('Failed to delete room');
     }
   };
 
@@ -398,15 +488,235 @@ export default function AdminDashboard() {
 
           {activeTab === 'rooms' && (
             <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow">
-              <h2 className="text-2xl font-bold mb-4 text-white">Room Management</h2>
-              <p className="text-gray-400">Coming soon...</p>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Room Management</h2>
+                <button
+                  onClick={() => {
+                    setEditingRoom(null);
+                    setSelectedHotelForRoom(null);
+                    setRoomFormData({ roomNumber: '', type: 'Single', price: 0, capacity: 1, amenities: [] });
+                    setShowRoomModal(true);
+                  }}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                >
+                  + New Room
+                </button>
+              </div>
+
+              {rooms.length === 0 ? (
+                <p className="text-gray-400">No rooms yet. Create one to get started!</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-gray-700">
+                      <tr>
+                        <th className="pb-3 text-gray-300">Room #</th>
+                        <th className="pb-3 text-gray-300">Hotel</th>
+                        <th className="pb-3 text-gray-300">Type</th>
+                        <th className="pb-3 text-gray-300">Price</th>
+                        <th className="pb-3 text-gray-300">Capacity</th>
+                        <th className="pb-3 text-gray-300">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rooms.map((room) => (
+                        <tr key={room.id} className="border-b border-gray-700 hover:bg-gray-700 transition">
+                          <td className="py-3 text-white">{room.roomNumber}</td>
+                          <td className="py-3 text-gray-300">{room.hotel?.name || 'N/A'}</td>
+                          <td className="py-3 text-gray-300">{room.type}</td>
+                          <td className="py-3 text-green-400">${room.price}</td>
+                          <td className="py-3 text-gray-300">{room.capacity}</td>
+                          <td className="py-3 space-x-2">
+                            <button
+                              onClick={() => {
+                                setEditingRoom(room);
+                                setSelectedHotelForRoom(room.hotelId);
+                                setRoomFormData({
+                                  roomNumber: room.roomNumber,
+                                  type: room.type,
+                                  price: room.price,
+                                  capacity: room.capacity,
+                                  amenities: room.amenities || [],
+                                });
+                                setShowRoomModal(true);
+                              }}
+                              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition text-xs"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowDeleteConfirm(room.id);
+                              }}
+                              className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition text-xs"
+                            >
+                              Delete
+                            </button>
+                            {showDeleteConfirm === room.id && (
+                              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg">
+                                  <p className="text-white mb-4">Delete Room {room.roomNumber}?</p>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleDeleteRoom(room.id)}
+                                      className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                                    >
+                                      Yes, Delete
+                                    </button>
+                                    <button
+                                      onClick={() => setShowDeleteConfirm(null)}
+                                      className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Room Modal */}
+              {showRoomModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg w-96 max-h-96 overflow-y-auto">
+                    <h3 className="text-xl font-bold text-white mb-4">
+                      {editingRoom ? 'Edit Room' : 'Create New Room'}
+                    </h3>
+                    <form onSubmit={handleSaveRoom}>
+                      <div className="mb-4">
+                        <label className="block text-gray-300 text-sm mb-2">Hotel</label>
+                        <select
+                          value={selectedHotelForRoom || ''}
+                          onChange={(e) => setSelectedHotelForRoom(parseInt(e.target.value))}
+                          className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-green-500 outline-none"
+                          required
+                          disabled={!!editingRoom}
+                        >
+                          <option value="">Select a hotel</option>
+                          {hotels.map(h => (
+                            <option key={h.id} value={h.id}>{h.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-gray-300 text-sm mb-2">Room Number</label>
+                        <input
+                          type="text"
+                          value={roomFormData.roomNumber}
+                          onChange={(e) => setRoomFormData({ ...roomFormData, roomNumber: e.target.value })}
+                          className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-green-500 outline-none"
+                          required
+                        />
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-gray-300 text-sm mb-2">Type</label>
+                        <select
+                          value={roomFormData.type}
+                          onChange={(e) => setRoomFormData({ ...roomFormData, type: e.target.value })}
+                          className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-green-500 outline-none"
+                        >
+                          <option>Single</option>
+                          <option>Double</option>
+                          <option>Suite</option>
+                          <option>Deluxe</option>
+                        </select>
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-gray-300 text-sm mb-2">Price</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={roomFormData.price}
+                          onChange={(e) => setRoomFormData({ ...roomFormData, price: parseFloat(e.target.value) })}
+                          className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-green-500 outline-none"
+                          required
+                        />
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-gray-300 text-sm mb-2">Capacity</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={roomFormData.capacity}
+                          onChange={(e) => setRoomFormData({ ...roomFormData, capacity: parseInt(e.target.value) })}
+                          className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-green-500 outline-none"
+                          required
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                        >
+                          {editingRoom ? 'Update' : 'Create'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowRoomModal(false);
+                            setEditingRoom(null);
+                          }}
+                          className="flex-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'reservations' && (
             <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow">
-              <h2 className="text-2xl font-bold mb-4 text-white">Reservation Management</h2>
-              <p className="text-gray-400">Coming soon...</p>
+              <h2 className="text-2xl font-bold mb-6 text-white">Reservation Management</h2>
+              
+              {reservations.length === 0 ? (
+                <p className="text-gray-400">No reservations yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-gray-700">
+                      <tr>
+                        <th className="pb-3 text-gray-300">Guest</th>
+                        <th className="pb-3 text-gray-300">Room</th>
+                        <th className="pb-3 text-gray-300">Check-in</th>
+                        <th className="pb-3 text-gray-300">Check-out</th>
+                        <th className="pb-3 text-gray-300">Price</th>
+                        <th className="pb-3 text-gray-300">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reservations.map((reservation) => (
+                        <tr key={reservation.id} className="border-b border-gray-700 hover:bg-gray-700 transition">
+                          <td className="py-3 text-white">{reservation.user?.name || 'N/A'}</td>
+                          <td className="py-3 text-gray-300">{reservation.room?.roomNumber || 'N/A'}</td>
+                          <td className="py-3 text-gray-300">{new Date(reservation.checkInDate).toLocaleDateString()}</td>
+                          <td className="py-3 text-gray-300">{new Date(reservation.checkOutDate).toLocaleDateString()}</td>
+                          <td className="py-3 text-green-400">${reservation.totalPrice.toFixed(2)}</td>
+                          <td className="py-3">
+                            <span className={`px-3 py-1 rounded text-xs font-bold ${
+                              reservation.status === 'CONFIRMED' ? 'bg-green-900 text-green-300' :
+                              reservation.status === 'CANCELLED' ? 'bg-red-900 text-red-300' :
+                              'bg-yellow-900 text-yellow-300'
+                            }`}>
+                              {reservation.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

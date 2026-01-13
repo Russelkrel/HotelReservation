@@ -15,9 +15,9 @@ const router = Router();
 // User routes
 router.post('/', authMiddleware, createReservation);
 router.get('/my-reservations', authMiddleware, getUserReservations);
-router.get('/:id', authMiddleware, getReservationById);
 router.get('/:id/cancellation-info', authMiddleware, getCancellationInfo);
 router.delete('/:id', authMiddleware, cancelReservation);
+router.get('/:id', authMiddleware, getReservationById);
 
 // Admin routes
 router.get('/', authMiddleware, adminMiddleware, getAllReservations);
