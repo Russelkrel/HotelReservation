@@ -91,22 +91,22 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gray-900 animate-fade-in">
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-700 to-purple-700 text-white py-20">
+      <div className="bg-gradient-to-br from-indigo-600 via-gray-900 to-gray-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold mb-2">🚀 JOSHTEL</h1>
-          <p className="text-2xl font-bold mb-4">Find Your Perfect Hotel</p>
-          <p className="text-xl opacity-90">Discover amazing hotels and book your stay today</p>
+          <h1 className="text-5xl font-bold mb-2 animate-card-fade-in">JOSHTEL</h1>
+          <p className="text-2xl font-bold mb-4 text-gray-200 animate-card-fade-in" style={{animationDelay: '0.1s'}}>Find Your Perfect Hotel</p>
+          <p className="text-xl opacity-90 text-gray-300 animate-card-fade-in" style={{animationDelay: '0.2s'}}>Discover amazing hotels and book your stay today</p>
         </div>
       </div>
 
       {/* Hotels Grid */}
       <div className="max-w-6xl mx-auto px-4 py-12">
-        <h2 className="text-3xl font-bold text-gray-100 mb-8">Featured Hotels</h2>
+        <h2 className="text-3xl font-bold text-gray-100 mb-8 animate-card-fade-in">Featured Hotels</h2>
         
         {/* Filters and Sorting */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-8 border border-gray-700">
+        <div className="bg-gradient-to-br from-gray-800 to-gray-850 rounded-lg p-6 mb-8 border border-gray-700 animate-card-fade-in shadow-lg" style={{animationDelay: '0.1s'}}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Search Location */}
             <div>
@@ -116,7 +116,7 @@ export default function Home() {
                 placeholder="e.g., New York, Paris..."
                 value={searchLocation}
                 onChange={(e) => setSearchLocation(e.target.value)}
-                className="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-blue-500 placeholder-gray-500"
+                className="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus-glow placeholder-gray-500 smooth-transition"
               />
             </div>
 
@@ -126,7 +126,7 @@ export default function Home() {
               <select 
                 value={sortBy} 
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-blue-500"
+                className="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus-glow smooth-transition"
               >
                 <option value="name">Name (A-Z)</option>
                 <option value="price-low">Price: Low to High</option>
@@ -144,7 +144,7 @@ export default function Home() {
                 max={maxAvailablePrice}
                 value={minPrice}
                 onChange={(e) => setMinPrice(Number(e.target.value))}
-                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
               <div className="text-xs text-gray-400 mt-1">$0 - ${maxAvailablePrice}</div>
             </div>
@@ -158,14 +158,13 @@ export default function Home() {
                 max={maxAvailablePrice}
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(Number(e.target.value))}
-                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
-              <div className="text-xs text-gray-400 mt-1">$0 - ${maxAvailablePrice}</div>
             </div>
           </div>
         </div>
 
-        {error && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded mb-4">{error}</div>}
+        {error && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg mb-4 animate-modal-in">{error}</div>}
         
         {hotels.length === 0 ? (
           <div className="text-center text-gray-400 py-8">No hotels available</div>
@@ -207,23 +206,29 @@ export default function Home() {
                 
                 return (
                   <Link key={hotel.id} to={`/hotel/${hotel.id}`}>
-                    <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer h-full border border-gray-700 hover:border-blue-500">
-                      <img 
-                        src={hotel.imageUrl || 'https://via.placeholder.com/400x200?text=' + encodeURIComponent(hotel.name)} 
-                        alt={hotel.name} 
-                        className="w-full h-48 object-cover" 
-                      />
+                    <div className="card-stagger bg-gradient-to-b from-gray-800 to-gray-850 rounded-xl shadow-lg overflow-hidden hover:shadow-2xl hover:shadow-indigo-500/20 hover:scale-105 smooth-transition-slow cursor-pointer h-full border border-gray-700 hover:border-indigo-500 group">
+                      <div className="relative overflow-hidden h-48">
+                        <img 
+                          src={hotel.imageUrl || 'https://via.placeholder.com/400x200?text=' + encodeURIComponent(hotel.name)} 
+                          alt={hotel.name} 
+                          className="w-full h-full object-cover group-hover:scale-110 smooth-transition-slow" 
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent opacity-0 group-hover:opacity-100 smooth-transition"></div>
+                      </div>
                       <div className="p-6">
-                        <h3 className="text-xl font-bold text-gray-100 mb-2">{hotel.name}</h3>
-                        <p className="text-gray-300 mb-2">{hotel.location}</p>
-                        <p className="text-gray-400 text-sm mb-4">{hotel.description || 'A wonderful place to stay'}</p>
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-yellow-500 font-bold">⭐ {hotel.rating.toFixed(1)}</span>
+                        <h3 className="text-xl font-bold text-gray-100 mb-2 group-hover:text-indigo-400 smooth-transition">{hotel.name}</h3>
+                        <p className="text-gray-400 mb-2 text-sm font-medium">{hotel.location}</p>
+                        <p className="text-gray-500 text-sm mb-4 line-clamp-2">{hotel.description || 'A wonderful place to stay'}</p>
+                        <div className="flex justify-between items-center mb-4 pt-2 border-t border-gray-700">
+                          <div className="flex items-center gap-1">
+                            <span className="text-amber-400 font-semibold">{hotel.rating.toFixed(1)}</span>
+                            <span className="text-gray-500 text-sm">rating</span>
+                          </div>
                           {minRoomPrice !== 'N/A' && (
-                            <span className="text-blue-400 font-bold">from ${minRoomPrice}/night</span>
+                            <span className="text-indigo-400 font-bold">from ${minRoomPrice}/night</span>
                           )}
                         </div>
-                        <button className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                        <button className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-indigo-800 smooth-transition font-medium">
                           View Details
                         </button>
                       </div>
