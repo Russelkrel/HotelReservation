@@ -21,6 +21,7 @@ model User {
   password  String
   name      String
   role      UserRole  @default(GUEST)
+  profilePictureUrl String?  @db.Text  // Base64 or Cloudinary URL for profile picture
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

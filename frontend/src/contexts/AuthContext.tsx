@@ -6,6 +6,7 @@ interface User {
   email: string
   name: string
   role: 'GUEST' | 'ADMIN'
+  profilePictureUrl?: string
 }
 
 interface AuthContextType {
@@ -14,6 +15,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, name: string) => Promise<void>
   logout: () => void
+  updateUser: (updatedUser: User) => void
   isAuthenticated: boolean
   loading: boolean
   error: string | null
@@ -81,8 +83,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('token')
   }
 
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser)
+    localStorage.setItem('user', JSON.stringify(updatedUser))
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isAuthenticated: !!user, loading, error }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, updateUser, isAuthenticated: !!user, loading, error }}>
       {children}
     </AuthContext.Provider>
   )

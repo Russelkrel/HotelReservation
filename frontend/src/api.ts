@@ -24,7 +24,13 @@ export const authAPI = {
     api.post('/auth/register', data),
   login: (data: { email: string; password: string }) =>
     api.post('/auth/login', data),
-  getProfile: () => api.get('/auth/profile')
+  getProfile: () => api.get('/auth/profile'),
+  updateProfile: (data: { name?: string; email?: string; profilePictureUrl?: string }) =>
+    api.put('/auth/profile', data),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post('/auth/change-password', data),
+  deleteAccount: (password: string) =>
+    api.delete('/auth/account', { data: { password } })
 };
 
 // Hotel APIs

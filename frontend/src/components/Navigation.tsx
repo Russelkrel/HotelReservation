@@ -20,6 +20,7 @@ export default function Navigation() {
             <>
               <span className="text-gray-300 text-sm">Welcome, <span className="font-semibold text-white">{user?.name}!</span></span>
               <Link to="/dashboard" className="text-gray-300 hover:text-indigo-400 smooth-transition font-medium">Dashboard</Link>
+              <Link to="/profile" className="text-gray-300 hover:text-indigo-400 smooth-transition font-medium">Profile</Link>
               {user?.role === 'ADMIN' && (
                 <Link to="/admin" className="text-amber-400 hover:text-amber-300 font-bold smooth-transition">Admin</Link>
               )}

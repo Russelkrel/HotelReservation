@@ -55,6 +55,7 @@ export const register = async (req: Request, res: Response) => {
         email: user.email,
         name: user.name,
         role: user.role,
+        profilePictureUrl: user.profilePictureUrl,
       },
     });
   } catch (error) {
@@ -106,6 +107,7 @@ export const login = async (req: Request, res: Response) => {
         email: user.email,
         name: user.name,
         role: user.role,
+        profilePictureUrl: user.profilePictureUrl,
       },
     });
   } catch (error) {
@@ -127,6 +129,7 @@ export const getProfile = async (req: Request, res: Response) => {
         email: true,
         name: true,
         role: true,
+        profilePictureUrl: true,
         createdAt: true,
       },
     });
@@ -139,5 +142,146 @@ export const getProfile = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ error: 'Failed to get profile' });
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    console.log('updateProfile called, user:', req.user);
+    
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { name, email, profilePictureUrl } = req.body;
+    console.log('Request body:', { name, email, profilePictureUrlLength: profilePictureUrl?.length });
+
+    // Validate input
+    if (!name && !email && !profilePictureUrl) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    // Validate profilePictureUrl size (base64 strings should be reasonable)
+    if (profilePictureUrl && profilePictureUrl.length > 5000000) {
+      return res.status(400).json({ error: 'Profile picture is too large' });
+    }
+
+    // Check if new email is already taken (if changing email)
+    if (email) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUser && existingUser.id !== req.user.userId) {
+        return res.status(409).json({ error: 'Email already in use' });
+      }
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: {
+        ...(name && { name }),
+        ...(email && { email }),
+        ...(profilePictureUrl !== undefined && { profilePictureUrl }),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        profilePictureUrl: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user,
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: req.user.userId },
+      data: { password: hashedPassword },
+    });
+
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+};
+
+export const deleteAccount = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Incorrect password' });
+    }
+
+    // Delete user (cascades to reservations)
+    await prisma.user.delete({
+      where: { id: req.user.userId },
+    });
+
+    res.status(200).json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
   }
 };
