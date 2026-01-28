@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import moment from 'moment-timezone';
 import { createReservationSchema, updateReservationStatusSchema } from '../schemas/reservationSchema';
 import { calculateCancellation } from '../utils/cancellationPolicy';
 import { sendBookingConfirmation, sendCancellationConfirmation } from '../utils/emailService';
+import { generateBookingPDF } from '../utils/pdfGenerator';
 
 const prisma = new PrismaClient();
 
@@ -18,14 +20,6 @@ export const createReservation = async (req: any, res: Response) => {
     const { roomId, checkInDate, checkOutDate } = validation.data;
     const userId = req.user.userId;
 
-    // Validate dates
-    const checkIn = new Date(checkInDate);
-    const checkOut = new Date(checkOutDate);
-    
-    if (checkIn >= checkOut) {
-      return res.status(400).json({ error: 'Check-out date must be after check-in date' });
-    }
-
     // Check if room exists and is available
     const room = await prisma.room.findUnique({
       where: { id: roomId },
@@ -38,6 +32,23 @@ export const createReservation = async (req: any, res: Response) => {
 
     if (!room.isAvailable) {
       return res.status(400).json({ error: 'Room is not available' });
+    }
+
+    // Validate dates using hotel's timezone
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+    const hotelTimezone = room.hotel.timezone || 'UTC';
+    const today = moment().tz(hotelTimezone).startOf('day').toDate();
+    
+    // Check if check-in date is in the past relative to hotel timezone
+    if (checkIn < today) {
+      return res.status(400).json({ 
+        error: `Check-in date cannot be in the past (Hotel timezone: ${hotelTimezone})` 
+      });
+    }
+    
+    if (checkIn >= checkOut) {
+      return res.status(400).json({ error: 'Check-out date must be after check-in date' });
     }
 
     // Check for conflicting reservations
@@ -334,3 +345,156 @@ export const getAllReservations = async (req: any, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch reservations' });
   }
 };
+
+// Modify reservation dates
+export const modifyReservation = async (req: any, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { checkInDate, checkOutDate } = req.body;
+    const userId = req.user.userId;
+
+    // Validate input
+    if (!checkInDate || !checkOutDate) {
+      return res.status(400).json({ error: 'Check-in and check-out dates are required' });
+    }
+
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+
+    if (checkIn >= checkOut) {
+      return res.status(400).json({ error: 'Check-out date must be after check-in date' });
+    }
+
+    // Fetch reservation
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: parseInt(id) },
+      include: { room: { include: { hotel: true } }, user: true }
+    });
+
+    if (!reservation) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+
+    // Check authorization
+    if (reservation.userId !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Check if reservation is modifiable
+    if (reservation.status === 'CANCELLED') {
+      return res.status(400).json({ error: 'Cannot modify a cancelled reservation' });
+    }
+
+    // Check check-in is in the future (at least 48 hours)
+    const now = new Date();
+    const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    if (checkIn <= twoDaysFromNow) {
+      return res.status(400).json({ error: 'Cannot modify dates - check-in must be at least 48 hours away' });
+    }
+
+    // Check for conflicting reservations with new dates
+    const conflict = await prisma.reservation.findFirst({
+      where: {
+        roomId: reservation.roomId,
+        id: { not: parseInt(id) },
+        status: { not: 'CANCELLED' },
+        OR: [
+          {
+            checkInDate: { lt: checkOut },
+            checkOutDate: { gt: checkIn }
+          }
+        ]
+      }
+    });
+
+    if (conflict) {
+      return res.status(400).json({ error: 'Room is already booked for the new dates' });
+    }
+
+    // Calculate new total price
+    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    const newTotalPrice = reservation.room.price * nights;
+
+    // Update reservation
+    const updated = await prisma.reservation.update({
+      where: { id: parseInt(id) },
+      data: {
+        checkInDate: checkIn,
+        checkOutDate: checkOut,
+        totalPrice: newTotalPrice,
+        lastModifiedDate: new Date(),
+        modificationCount: { increment: 1 }
+      },
+      include: {
+        room: { include: { hotel: true } },
+        user: { select: { id: true, email: true, name: true } }
+      }
+    });
+
+    res.json({
+      message: 'Reservation dates modified successfully',
+      reservation: updated,
+      priceChange: newTotalPrice - reservation.totalPrice
+    });
+  } catch (error: any) {
+    console.error('Modify reservation error:', error);
+    res.status(500).json({ error: 'Failed to modify reservation' });
+  }
+};
+
+// Download reservation as PDF
+export const downloadReservationPDF = async (req: any, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        room: { include: { hotel: true } },
+        user: { select: { id: true, email: true, name: true } }
+      }
+    });
+
+    if (!reservation) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+
+    // Check authorization
+    if (reservation.userId !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Calculate nights
+    const nights = Math.ceil(
+      (new Date(reservation.checkOutDate).getTime() - new Date(reservation.checkInDate).getTime()) / 
+      (1000 * 60 * 60 * 24)
+    );
+
+    const pdfStream = await generateBookingPDF({
+      reservationId: reservation.id,
+      hotelName: reservation.room.hotel.name,
+      roomType: reservation.room.type,
+      roomNumber: reservation.room.roomNumber,
+      userName: reservation.user.name,
+      userEmail: reservation.user.email,
+      checkInDate: reservation.checkInDate,
+      checkOutDate: reservation.checkOutDate,
+      totalPrice: reservation.totalPrice,
+      nights,
+      pricePerNight: reservation.room.price
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="booking-${reservation.id}.pdf"`
+    );
+
+    pdfStream.pipe(res);
+  } catch (error: any) {
+    console.error('Download PDF error:', error);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+};
+

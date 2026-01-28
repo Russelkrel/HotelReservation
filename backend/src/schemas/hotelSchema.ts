@@ -5,6 +5,7 @@ export const createHotelSchema = z.object({
   location: z.string().min(1, 'Location is required'),
   description: z.string().optional(),
   rating: z.number().min(0).max(5).optional(),
+  timezone: z.string().optional().default('UTC'),
 });
 
 export const updateHotelSchema = z.object({
@@ -12,6 +13,7 @@ export const updateHotelSchema = z.object({
   location: z.string().min(1).optional(),
   description: z.string().optional(),
   rating: z.number().min(0).max(5).optional(),
+  timezone: z.string().optional(),
 });
 
 export const createRoomSchema = z.object({

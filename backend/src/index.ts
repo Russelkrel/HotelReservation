@@ -5,6 +5,7 @@ import authRoutes from './routes/authRoutes';
 import hotelRoutes from './routes/hotelRoutes';
 import roomRoutes from './routes/roomRoutes';
 import reservationRoutes from './routes/reservationRoutes';
+import { authMiddleware } from './middleware/auth';
 
 dotenv.config();
 
@@ -19,6 +20,15 @@ app.use(express.urlencoded({ limit: '50mb' }));
 // Health check
 app.get('/health', (req, res) => {
   res.json({ message: 'Server is running' });
+});
+
+// Debug route for testing auth
+app.get('/debug/auth', authMiddleware, (req: any, res) => {
+  res.json({ 
+    message: 'Auth working!', 
+    user: req.user,
+    timestamp: new Date().toISOString() 
+  });
 });
 
 // Routes

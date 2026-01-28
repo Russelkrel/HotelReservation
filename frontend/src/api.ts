@@ -12,11 +12,27 @@ const api = axios.create({
 // Add token to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+  console.log('🔑 API Request:', config.url, 'Token:', token ? `${token.substring(0, 20)}...` : 'No token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+// Add response interceptor to catch auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.log('🚨 API Error:', error.response?.status, error.response?.data);
+    if (error.response?.status === 401) {
+      console.log('🚨 Authentication failed - removing token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Auth APIs
 export const authAPI = {
@@ -53,7 +69,14 @@ export const reservationAPI = {
   }) => api.post('/reservations', data),
   getUserReservations: () => api.get('/reservations/my-reservations'),
   getReservationById: (id: number) => api.get(`/reservations/${id}`),
-  cancelReservation: (id: number) => api.delete(`/reservations/${id}`)
+  cancelReservation: (id: number) => api.delete(`/reservations/${id}`),
+  modifyReservation: (id: number, data: {
+    checkInDate: string;
+    checkOutDate: string;
+  }) => api.put(`/reservations/${id}`, data),
+  downloadPDF: (id: number) => api.get(`/reservations/${id}/pdf`, {
+    responseType: 'blob'
+  })
 };
 
 export default api;

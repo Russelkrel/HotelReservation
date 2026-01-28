@@ -2,6 +2,13 @@
 LOCAL_SETUP.md
 practice-code.md
 
+# 🔐 SECURITY - Never commit credentials
+CREDENTIALS.md
+**/CREDENTIALS.*
+**/*credentials*
+**/*passwords*
+**/*secrets*
+
 # Node modules
 node_modules/
 npm-debug.log
@@ -11,6 +18,8 @@ yarn-error.log
 .env
 .env.local
 .env.*.local
+backend/.env
+frontend/.env
 
 # IDE
 .vscode/
@@ -30,3 +39,12 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded files
+uploads/
+temp/

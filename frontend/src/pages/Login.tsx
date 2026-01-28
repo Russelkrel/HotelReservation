@@ -1,5 +1,5 @@
 import { useAuth } from '../contexts/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 
 export default function Login() {
@@ -8,6 +8,10 @@ export default function Login() {
   const [error, setError] = useState('')
   const { login, loading } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Get the page user was trying to access (if redirected from ProtectedRoute)
+  const from = (location.state as any)?.from?.pathname || '/'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,7 +22,8 @@ export default function Login() {
     try {
       setError('')
       await login(email, password)
-      navigate('/')
+      // Redirect to the page they were trying to access, or home
+      navigate(from, { replace: true })
     } catch (err: any) {
       setError(err.message || 'Login failed')
     }

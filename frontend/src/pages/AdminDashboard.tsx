@@ -239,10 +239,10 @@ export default function AdminDashboard() {
   };
 
   const menuTabs: AdminMenuTab[] = [
-    { id: 'overview', label: 'Overview', icon: '📊' },
-    { id: 'hotels', label: 'Hotels', icon: '🏨' },
-    { id: 'rooms', label: 'Rooms', icon: '🛏️' },
-    { id: 'reservations', label: 'Reservations', icon: '📅' },
+    { id: 'overview', label: 'Overview', icon: '' },
+    { id: 'hotels', label: 'Hotels', icon: '' },
+    { id: 'rooms', label: 'Rooms', icon: '' },
+    { id: 'reservations', label: 'Reservations', icon: '' },
   ];
 
   if (loading) {

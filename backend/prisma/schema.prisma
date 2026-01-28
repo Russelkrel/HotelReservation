@@ -35,6 +35,7 @@ model Hotel {
   description String?
   rating    Float     @default(0)
   imageUrl  String?   // Cloudinary URL
+  timezone  String    @default("UTC") // Hotel's timezone (e.g., "America/New_York", "Asia/Manila")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -71,6 +72,8 @@ model Reservation {
   refundAmount Float?   // Amount to be refunded if cancelled
   status    String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
   cancellationDate DateTime? // When the reservation was cancelled
+  modificationCount Int @default(0)  // Track how many times dates were modified
+  lastModifiedDate DateTime?  // When dates were last modified
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

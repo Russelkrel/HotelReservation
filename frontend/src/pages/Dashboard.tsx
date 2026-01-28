@@ -9,9 +9,11 @@ interface Reservation {
   checkOutDate: string
   totalPrice: number
   status: string
+  modificationCount: number
   room: {
     roomNumber: string
     type: string
+    price: number
     hotel: {
       name: string
     }
@@ -23,6 +25,11 @@ export default function Dashboard() {
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [showModifyModal, setShowModifyModal] = useState<number | null>(null)
+  const [modifyData, setModifyData] = useState({ checkInDate: '', checkOutDate: '' })
+  const [modifying, setModifying] = useState(false)
+  const [downloading, setDownloading] = useState<number | null>(null)
 
   useEffect(() => {
     const fetchReservations = async () => {
@@ -46,11 +53,74 @@ export default function Dashboard() {
       try {
         await reservationAPI.cancelReservation(id)
         setReservations(reservations.map(r => r.id === id ? { ...r, status: 'CANCELLED' } : r))
-        alert('Reservation cancelled')
+        setSuccess('Reservation cancelled successfully')
+        setTimeout(() => setSuccess(null), 3000)
       } catch (err: any) {
-        alert('Failed to cancel reservation')
+        setError(err.response?.data?.error || 'Failed to cancel reservation')
+        setTimeout(() => setError(null), 3000)
       }
     }
+  }
+
+  const openModifyModal = (reservation: Reservation) => {
+    setShowModifyModal(reservation.id)
+    setModifyData({
+      checkInDate: reservation.checkInDate.split('T')[0],
+      checkOutDate: reservation.checkOutDate.split('T')[0]
+    })
+  }
+
+  const handleModifyReservation = async () => {
+    if (!modifyData.checkInDate || !modifyData.checkOutDate) {
+      setError('Both dates are required')
+      return
+    }
+
+    try {
+      setModifying(true)
+      setError(null)
+      const response = await reservationAPI.modifyReservation(showModifyModal!, {
+        checkInDate: modifyData.checkInDate,
+        checkOutDate: modifyData.checkOutDate
+      })
+      
+      setReservations(reservations.map(r => r.id === showModifyModal ? response.data.reservation : r))
+      setShowModifyModal(null)
+      setSuccess(`Reservation updated! Price change: $${response.data.priceChange.toFixed(2)}`)
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to modify reservation')
+    } finally {
+      setModifying(false)
+    }
+  }
+
+  const handleDownloadPDF = async (id: number) => {
+    try {
+      setDownloading(id)
+      const response = await reservationAPI.downloadPDF(id)
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `booking-${id}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err: any) {
+      setError('Failed to download PDF')
+      console.error(err)
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  const calculateNights = (checkIn: string, checkOut: string) => {
+    const start = new Date(checkIn)
+    const end = new Date(checkOut)
+    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
   }
 
   return (
@@ -85,10 +155,13 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Alerts */}
+        {error && <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-4">{error}</div>}
+        {success && <div className="bg-green-900 border border-green-700 text-green-200 px-4 py-3 rounded-lg mb-4">{success}</div>}
+
         {/* Reservations */}
         <div className="animate-card-fade-in" style={{animationDelay: '0.2s'}}>
           <h2 className="text-2xl font-bold mb-6 text-white">My Reservations</h2>
-          {error && <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-4 animate-modal-in">{error}</div>}
           
           {loading ? (
             <div className="flex justify-center items-center py-12">
@@ -137,22 +210,97 @@ export default function Dashboard() {
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Total Price</p>
                       <p className="font-semibold text-indigo-400">${res.totalPrice.toFixed(2)}</p>
                     </div>
-                    {res.status !== 'CANCELLED' && (
-                      <div className="pt-4 flex justify-end">
+                    <div className="pt-4 flex gap-2 justify-end">
+                      {res.status !== 'CANCELLED' && (
+                        <>
+                          <button 
+                            onClick={() => openModifyModal(res)}
+                            className="text-blue-400 hover:text-blue-300 font-semibold text-sm smooth-transition"
+                            title="Modify dates"
+                          >
+                            Modify
+                          </button>
+                          <button 
+                            onClick={() => handleDownloadPDF(res.id)}
+                            disabled={downloading === res.id}
+                            className="text-green-400 hover:text-green-300 font-semibold text-sm smooth-transition disabled:opacity-50"
+                            title="Download PDF"
+                          >
+                            {downloading === res.id ? 'Downloading...' : 'Download'}
+                          </button>
+                        </>
+                      )}
+                      {res.status !== 'CANCELLED' && (
                         <button 
                           onClick={() => handleCancel(res.id)}
                           className="text-red-400 hover:text-red-300 font-semibold text-sm smooth-transition"
                         >
-                          Cancel Booking
+                          Cancel
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {/* Modify Modal */}
+        {showModifyModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 rounded-xl shadow-2xl p-8 max-w-md w-full border border-gray-700">
+              <h3 className="text-2xl font-bold text-white mb-6">Modify Reservation Dates</h3>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-gray-400 text-sm font-semibold mb-2">Check-in Date</label>
+                  <input
+                    type="date"
+                    value={modifyData.checkInDate}
+                    onChange={(e) => setModifyData({...modifyData, checkInDate: e.target.value})}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-400 text-sm font-semibold mb-2">Check-out Date</label>
+                  <input
+                    type="date"
+                    value={modifyData.checkOutDate}
+                    onChange={(e) => setModifyData({...modifyData, checkOutDate: e.target.value})}
+                    min={modifyData.checkInDate}
+                    className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                {modifyData.checkInDate && modifyData.checkOutDate && (
+                  <div className="pt-2 border-t border-gray-600">
+                    <p className="text-gray-400 text-sm mb-2">New Total: <span className="text-indigo-400 font-bold text-lg">${(reservations.find(r => r.id === showModifyModal)?.room.price || 0) * calculateNights(modifyData.checkInDate, modifyData.checkOutDate)}.00</span></p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowModifyModal(null)}
+                  disabled={modifying}
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 font-medium transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleModifyReservation}
+                  disabled={modifying || !modifyData.checkInDate || !modifyData.checkOutDate}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition disabled:opacity-50"
+                >
+                  {modifying ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

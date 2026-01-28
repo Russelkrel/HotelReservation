@@ -39,21 +39,21 @@ export default function HotelDetail() {
   const [totalPrice, setTotalPrice] = useState(0)
   const [showCancellationPolicy, setShowCancellationPolicy] = useState(false)
 
-  // Map amenities to emoji icons
+  // Map amenities to professional icons
   const amenityIcons: { [key: string]: string } = {
-    'WiFi': '📶',
-    'Air Conditioning': '❄️',
-    'TV': '📺',
-    'Work Desk': '💼',
-    'Safe': '🔐',
-    'Coffee Maker': '☕',
-    'Swimming Pool Access': '🏊',
-    'Parking': '🅿️',
-    'Gym Access': '🏋️',
-    'Hot Tub': '🛁',
-    'Spa': '💆',
-    'Balcony': '🌅',
-    'Mini Bar': '🥃',
+    'WiFi': '•',
+    'Air Conditioning': '•',
+    'TV': '•',
+    'Work Desk': '•',
+    'Safe': '•',
+    'Coffee Maker': '•',
+    'Swimming Pool Access': '•',
+    'Parking': '•',
+    'Gym Access': '•',
+    'Hot Tub': '•',
+    'Spa': '•',
+    'Balcony': '•',
+    'Mini Bar': '•',
   }
 
   // Calculate cancellation policy
@@ -68,28 +68,31 @@ export default function HotelDetail() {
     );
 
     if (daysUntilCheckIn >= 7) {
+      const deadline = new Date(checkIn.getTime() - 7 * millisecondsPerDay);
       return {
         policy: 'Free Cancellation',
         refundPercentage: 100,
         refundAmount: totalPrice,
-        description: `Free cancellation until ${new Date(checkIn.getTime() - 7 * millisecondsPerDay).toLocaleDateString()}`,
+        description: `Free cancellation until ${deadline.toLocaleDateString()}`,
       };
     }
 
     if (daysUntilCheckIn >= 3) {
+      const deadline = new Date(checkIn.getTime() - 3 * millisecondsPerDay);
       return {
         policy: 'Partial Refund (50%)',
         refundPercentage: 50,
         refundAmount: totalPrice * 0.5,
-        description: `50% refund until ${new Date(checkIn.getTime() - 3 * millisecondsPerDay).toLocaleDateString()}`,
+        description: `50% refund until ${deadline.toLocaleDateString()}`,
       };
     }
 
+    const deadline = new Date(checkIn.getTime() - 3 * millisecondsPerDay);
     return {
       policy: 'Non-Refundable',
       refundPercentage: 0,
       refundAmount: 0,
-      description: `No refund after ${new Date(checkIn.getTime() - 3 * millisecondsPerDay).toLocaleDateString()}`,
+      description: `No refund after ${deadline.toLocaleDateString()}`,
     };
   };
 
@@ -171,9 +174,9 @@ export default function HotelDetail() {
             className="w-full h-96 object-cover rounded-lg shadow-lg" 
           />
           <h1 className="text-4xl font-bold mt-6 mb-2 text-gray-100">{hotel.name}</h1>
-          <p className="text-xl text-gray-300 mb-4">📍 {hotel.location}</p>
+          <p className="text-xl text-gray-300 mb-4">Location: {hotel.location}</p>
           <p className="text-gray-400 text-lg mb-4">{hotel.description || 'A wonderful place to stay'}</p>
-          <div className="text-2xl text-yellow-500 font-bold">⭐ {hotel.rating.toFixed(1)}</div>
+          <div className="text-2xl text-yellow-500 font-bold">Rating: {hotel.rating.toFixed(1)} / 5</div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -216,7 +219,7 @@ export default function HotelDetail() {
                           <div className="flex flex-wrap gap-2 mt-3">
                             {room.amenities.map((amenity, idx) => (
                               <span key={idx} className="text-sm bg-blue-900 bg-opacity-40 text-blue-300 px-2 py-1 rounded flex items-center gap-1">
-                                {amenityIcons[amenity] || '✓'} {amenity}
+                                {amenityIcons[amenity] || '•'} {amenity}
                               </span>
                             ))}
                           </div>
@@ -273,8 +276,8 @@ export default function HotelDetail() {
                     onClick={() => setShowCancellationPolicy(!showCancellationPolicy)}
                     className="w-full text-left flex justify-between items-center"
                   >
-                    <p className="text-amber-300 font-bold">📋 Cancellation Policy</p>
-                    <span className="text-amber-300">{showCancellationPolicy ? '▼' : '▶'}</span>
+                    <p className="text-amber-300 font-bold">Cancellation Policy</p>
+                    <span className="text-amber-300">{showCancellationPolicy ? '−' : '+'}</span>
                   </button>
                   
                   {showCancellationPolicy && calculateCancellationPolicy(checkIn) && (
@@ -286,7 +289,7 @@ export default function HotelDetail() {
                         {calculateCancellationPolicy(checkIn)!.description}
                       </p>
                       <p className="text-amber-300 font-semibold pt-2">
-                        💰 Refund if cancelled: ${calculateCancellationPolicy(checkIn)!.refundAmount.toFixed(2)}
+                        Refund if cancelled: ${calculateCancellationPolicy(checkIn)!.refundAmount.toFixed(2)}
                       </p>
                     </div>
                   )}
@@ -296,10 +299,17 @@ export default function HotelDetail() {
               <button
                 onClick={handleBooking}
                 disabled={!selectedRoom || !checkIn || !checkOut || booking}
-                className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:bg-gray-600"
+                className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {booking ? 'Booking...' : 'Book Room'}
               </button>
+              {(!selectedRoom || !checkIn || !checkOut) && (
+                <p className="text-sm text-amber-400 mt-3 text-center">
+                  {!selectedRoom && 'Please select a room'}
+                  {selectedRoom && !checkIn && 'Please select check-in date'}
+                  {selectedRoom && checkIn && !checkOut && 'Please select check-out date'}
+                </p>
+              )}
             </div>
           </div>
         </div>
